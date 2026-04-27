@@ -63,25 +63,9 @@ Your subdomain is the prefix in your BambooHR URL — e.g. `acme` from `acme.bam
 
 ---
 
-### Step 2 — Confirm GitHub access
+### Step 2 — Add to Claude Desktop
 
-This package is installed straight from the [`fasttrack-solutions/bamboohr-mcp`](https://github.com/fasttrack-solutions/bamboohr-mcp) repo (not from npm). You need read access to the repo and a working git auth method:
-
-```bash
-# verify SSH auth works (preferred for private repos):
-ssh -T git@github.com
-# expected: "Hi <username>! You've successfully authenticated..."
-```
-
-If SSH isn't set up, [add a key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) — npm/npx will use it automatically when installing from `git+ssh://` URLs.
-
-> First install clones the repo and runs the build (~10–15 seconds). Subsequent runs are cached by `npx` until the cache is cleared or a different ref is requested.
-
----
-
-### Step 3 — Add to Claude Desktop
-
-Edit your config file:
+This package is installed from a GitHub tarball URL — no npm registry, no auth, no build step on your machine. Edit your config file:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
@@ -91,7 +75,7 @@ Edit your config file:
   "mcpServers": {
     "bamboohr": {
       "command": "npx",
-      "args": ["-y", "git+ssh://git@github.com/fasttrack-solutions/bamboohr-mcp.git"],
+      "args": ["-y", "https://github.com/fasttrack-solutions/bamboohr-mcp/tarball/main"],
       "env": {
         "BAMBOOHR_API_KEY": "your-api-key-here",
         "BAMBOOHR_SUBDOMAIN": "your-company-subdomain"
@@ -105,20 +89,22 @@ Restart Claude Desktop.
 
 ---
 
-### Step 4 — Or add to Claude Code (CLI)
+### Step 3 — Or add to Claude Code (CLI)
 
 ```bash
 claude mcp add bamboohr \
   -e BAMBOOHR_API_KEY=your-api-key-here \
   -e BAMBOOHR_SUBDOMAIN=your-company-subdomain \
-  -- npx -y git+ssh://git@github.com/fasttrack-solutions/bamboohr-mcp.git
+  -- npx -y https://github.com/fasttrack-solutions/bamboohr-mcp/tarball/main
 ```
 
-To pin a specific commit or tag, append `#<ref>` (e.g. `...bamboohr-mcp.git#v0.2.0` or `...bamboohr-mcp.git#a1b2c3d`).
+To pin a specific tag or commit, replace `main` in the URL (e.g. `.../tarball/v0.2.0` or `.../tarball/a1b2c3d`).
+
+> Why a tarball URL instead of `git+ssh://...`? npm 11.x crashes on git-dep installs when `min-release-age` is set in npmrc. The tarball URL bypasses that path entirely and installs in ~2 seconds.
 
 ---
 
-### Step 5 — Verify
+### Step 4 — Verify
 
 Open Claude and ask: **"Show me the BambooHR employee directory"**
 
@@ -143,7 +129,7 @@ claude mcp add bamboohr \
   -e BAMBOOHR_API_KEY=your-api-key-here \
   -e BAMBOOHR_SUBDOMAIN=your-company-subdomain \
   -e BAMBOOHR_ENABLE_TIME_TRACKING_WRITES=true \
-  -- npx -y git+ssh://git@github.com/fasttrack-solutions/bamboohr-mcp.git
+  -- npx -y https://github.com/fasttrack-solutions/bamboohr-mcp/tarball/main
 ```
 
 The API key's own BambooHR permissions still apply on top of these flags — flipping them on does not grant the key any new server-side authority.
