@@ -63,7 +63,23 @@ Your subdomain is the prefix in your BambooHR URL — e.g. `acme` from `acme.bam
 
 ---
 
-### Step 2 — Add to Claude Desktop
+### Step 2 — Confirm GitHub access
+
+This package is installed straight from the [`fasttrack-solutions/bamboohr-mcp`](https://github.com/fasttrack-solutions/bamboohr-mcp) repo (not from npm). You need read access to the repo and a working git auth method:
+
+```bash
+# verify SSH auth works (preferred for private repos):
+ssh -T git@github.com
+# expected: "Hi <username>! You've successfully authenticated..."
+```
+
+If SSH isn't set up, [add a key to your GitHub account](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) — npm/npx will use it automatically when installing from `git+ssh://` URLs.
+
+> First install clones the repo and runs the build (~10–15 seconds). Subsequent runs are cached by `npx` until the cache is cleared or a different ref is requested.
+
+---
+
+### Step 3 — Add to Claude Desktop
 
 Edit your config file:
 
@@ -75,7 +91,7 @@ Edit your config file:
   "mcpServers": {
     "bamboohr": {
       "command": "npx",
-      "args": ["-y", "bamboohr-mcp"],
+      "args": ["-y", "git+ssh://git@github.com/fasttrack-solutions/bamboohr-mcp.git"],
       "env": {
         "BAMBOOHR_API_KEY": "your-api-key-here",
         "BAMBOOHR_SUBDOMAIN": "your-company-subdomain"
@@ -89,20 +105,48 @@ Restart Claude Desktop.
 
 ---
 
-### Step 3 — Or add to Claude Code (CLI)
+### Step 4 — Or add to Claude Code (CLI)
 
 ```bash
 claude mcp add bamboohr \
   -e BAMBOOHR_API_KEY=your-api-key-here \
   -e BAMBOOHR_SUBDOMAIN=your-company-subdomain \
-  -- npx -y bamboohr-mcp
+  -- npx -y git+ssh://git@github.com/fasttrack-solutions/bamboohr-mcp.git
 ```
+
+To pin a specific commit or tag, append `#<ref>` (e.g. `...bamboohr-mcp.git#v0.2.0` or `...bamboohr-mcp.git#a1b2c3d`).
 
 ---
 
-### Step 4 — Verify
+### Step 5 — Verify
 
 Open Claude and ask: **"Show me the BambooHR employee directory"**
+
+---
+
+### Write access (opt-in)
+
+By default, only read-only tools are exposed. Mutating tools are gated behind two flags so you can opt in to the surface you actually need:
+
+| Env var | Effect |
+|---|---|
+| `BAMBOOHR_ENABLE_TIME_TRACKING_WRITES=true` | Enables `bamboohr_clock_in`, `bamboohr_clock_out`, and `bamboohr_create_hour_entries` |
+| `BAMBOOHR_ENABLE_WRITES=true` | Enables every other destructive tool (employee/time-off/ats/webhooks/goals/training/benefits/account writes) |
+| `BAMBOOHR_EMPLOYEE_ID=12345` | *Optional override.* When write flags are on, the server auto-resolves the current employee ID from the API key at startup and uses it as the default `employeeId` for time-tracking writes. Set this only if you want to clock entries against a different employee |
+| `BAMBOOHR_DEFAULT_LATITUDE=59.3293` | *Optional.* Default decimal latitude for clock-in/out when the company enforces geolocation. Both `BAMBOOHR_DEFAULT_LATITUDE` and `BAMBOOHR_DEFAULT_LONGITUDE` must be set together. If unset, the model is expected to provide `latitude`/`longitude` in the tool call |
+| `BAMBOOHR_DEFAULT_LONGITUDE=18.0686` | See above |
+
+Example for personal clock-in setup (auto-resolves your employee ID):
+
+```bash
+claude mcp add bamboohr \
+  -e BAMBOOHR_API_KEY=your-api-key-here \
+  -e BAMBOOHR_SUBDOMAIN=your-company-subdomain \
+  -e BAMBOOHR_ENABLE_TIME_TRACKING_WRITES=true \
+  -- npx -y git+ssh://git@github.com/fasttrack-solutions/bamboohr-mcp.git
+```
+
+The API key's own BambooHR permissions still apply on top of these flags — flipping them on does not grant the key any new server-side authority.
 
 ---
 

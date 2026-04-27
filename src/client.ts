@@ -69,5 +69,3 @@ export class BambooHRClient {
     return res.data;
   }
 }
-
-export const client = new BambooHRClient();

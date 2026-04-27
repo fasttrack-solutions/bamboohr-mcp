@@ -35,7 +35,9 @@ export const timeTrackingTools = [
   },
   {
     name: "bamboohr_clock_in",
-    description: "Record a clock-in entry for an employee. Defaults to the current time.",
+    description:
+      "Record a clock-in entry for an employee. Defaults to the current time. " +
+      "BambooHR may require geolocation depending on company policy; if so, pass latitude/longitude or set BAMBOOHR_DEFAULT_LATITUDE / BAMBOOHR_DEFAULT_LONGITUDE.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -45,6 +47,14 @@ export const timeTrackingTools = [
           description: "ISO 8601 datetime (defaults to now)",
         },
         note: { type: "string" },
+        latitude: {
+          type: "number",
+          description: "Decimal latitude (-90 to 90). Required if company enforces geolocation",
+        },
+        longitude: {
+          type: "number",
+          description: "Decimal longitude (-180 to 180). Required if company enforces geolocation",
+        },
       },
       required: ["employeeId"],
     },
@@ -52,16 +62,25 @@ export const timeTrackingTools = [
     async execute(input: z.infer<typeof ClockInSchema>) {
       const client = getClient();
       const parsed = ClockInSchema.parse(input);
-      return client.post("/time_tracking/clock_in", {
-        employeeId: parsed.employeeId,
+      const body: Record<string, unknown> = {
         clockInTime: parsed.clockInTime ?? new Date().toISOString(),
         note: parsed.note,
-      });
+      };
+      if (parsed.latitude !== undefined && parsed.longitude !== undefined) {
+        body.latitude = String(parsed.latitude);
+        body.longitude = String(parsed.longitude);
+      }
+      return client.post(
+        `/time_tracking/employees/${encodeURIComponent(parsed.employeeId)}/clock_in`,
+        body,
+      );
     },
   },
   {
     name: "bamboohr_clock_out",
-    description: "Record a clock-out entry for an employee. Defaults to the current time.",
+    description:
+      "Record a clock-out entry for an employee. Defaults to the current time. " +
+      "BambooHR may require geolocation depending on company policy; if so, pass latitude/longitude or set BAMBOOHR_DEFAULT_LATITUDE / BAMBOOHR_DEFAULT_LONGITUDE.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -70,6 +89,14 @@ export const timeTrackingTools = [
           type: "string",
           description: "ISO 8601 datetime (defaults to now)",
         },
+        latitude: {
+          type: "number",
+          description: "Decimal latitude (-90 to 90). Required if company enforces geolocation",
+        },
+        longitude: {
+          type: "number",
+          description: "Decimal longitude (-180 to 180). Required if company enforces geolocation",
+        },
       },
       required: ["employeeId"],
     },
@@ -77,10 +104,17 @@ export const timeTrackingTools = [
     async execute(input: z.infer<typeof ClockOutSchema>) {
       const client = getClient();
       const parsed = ClockOutSchema.parse(input);
-      return client.post("/time_tracking/clock_out", {
-        employeeId: parsed.employeeId,
+      const body: Record<string, unknown> = {
         clockOutTime: parsed.clockOutTime ?? new Date().toISOString(),
-      });
+      };
+      if (parsed.latitude !== undefined && parsed.longitude !== undefined) {
+        body.latitude = String(parsed.latitude);
+        body.longitude = String(parsed.longitude);
+      }
+      return client.post(
+        `/time_tracking/employees/${encodeURIComponent(parsed.employeeId)}/clock_out`,
+        body,
+      );
     },
   },
   {

@@ -38,6 +38,36 @@ if (!process.env.BAMBOOHR_SUBDOMAIN) {
   process.exit(1);
 }
 
+// ─── Write-access flags ──────────────────────────────────────────────────────
+const ENABLE_TIME_TRACKING_WRITES =
+  process.env.BAMBOOHR_ENABLE_TIME_TRACKING_WRITES === "true";
+const ENABLE_WRITES = process.env.BAMBOOHR_ENABLE_WRITES === "true";
+const DEFAULT_EMPLOYEE_ID = process.env.BAMBOOHR_EMPLOYEE_ID;
+
+const TIME_TRACKING_WRITE_TOOLS = new Set([
+  "bamboohr_clock_in",
+  "bamboohr_clock_out",
+  "bamboohr_create_hour_entries",
+]);
+const CLOCK_TOOLS_WITH_GEOLOCATION = new Set([
+  "bamboohr_clock_in",
+  "bamboohr_clock_out",
+]);
+
+function parseCoordinate(raw: string | undefined, name: string, min: number, max: number): number | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    process.stderr.write(`WARN: ${name}="${raw}" is not a valid coordinate; ignoring.\n`);
+    return undefined;
+  }
+  return parsed;
+}
+
+const STATIC_LATITUDE = parseCoordinate(process.env.BAMBOOHR_DEFAULT_LATITUDE, "BAMBOOHR_DEFAULT_LATITUDE", -90, 90);
+const STATIC_LONGITUDE = parseCoordinate(process.env.BAMBOOHR_DEFAULT_LONGITUDE, "BAMBOOHR_DEFAULT_LONGITUDE", -180, 180);
+const HAS_STATIC_GEO = STATIC_LATITUDE !== undefined && STATIC_LONGITUDE !== undefined;
+
 // ─── Initialize client ──────────────────────────────────────────────────────
 const client = new BambooHRClient({
   apiKey: process.env.BAMBOOHR_API_KEY,
@@ -80,7 +110,26 @@ const allTools: ToolDef[] = [
   ...accountTools,
 ] as ToolDef[];
 
-const toolMap = new Map<string, ToolDef>(allTools.map((t) => [t.name, t]));
+// Warn if any tool is missing both annotations — without it, gating below
+// silently treats the tool as read-only and exposes it by default.
+for (const t of allTools) {
+  const isRead = t.annotations?.readOnlyHint === true;
+  const isWrite = t.annotations?.destructiveHint === true;
+  if (!isRead && !isWrite) {
+    process.stderr.write(
+      `WARN: tool "${t.name}" has no readOnlyHint or destructiveHint — defaulting to read-only.\n`
+    );
+  }
+}
+
+function isToolEnabled(t: ToolDef): boolean {
+  if (TIME_TRACKING_WRITE_TOOLS.has(t.name)) return ENABLE_TIME_TRACKING_WRITES;
+  if (t.annotations?.destructiveHint === true) return ENABLE_WRITES;
+  return true;
+}
+
+const enabledTools = allTools.filter(isToolEnabled);
+const toolMap = new Map<string, ToolDef>(enabledTools.map((t) => [t.name, t]));
 
 // ─── Server setup ─────────────────────────────────────────────────────────────
 const server = new Server(
@@ -94,7 +143,7 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: allTools.map(({ name, description, inputSchema, annotations }) => ({
+  tools: enabledTools.map(({ name, description, inputSchema, annotations }) => ({
     name,
     description,
     inputSchema,
@@ -113,8 +162,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
+  let toolArgs: Record<string, unknown> = (args as Record<string, unknown>) ?? {};
+  if (
+    selfEmployeeId &&
+    TIME_TRACKING_WRITE_TOOLS.has(name) &&
+    !toolArgs.employeeId
+  ) {
+    toolArgs = { ...toolArgs, employeeId: selfEmployeeId };
+  }
+  if (
+    HAS_STATIC_GEO &&
+    CLOCK_TOOLS_WITH_GEOLOCATION.has(name) &&
+    toolArgs.latitude === undefined &&
+    toolArgs.longitude === undefined
+  ) {
+    toolArgs = {
+      ...toolArgs,
+      latitude: STATIC_LATITUDE,
+      longitude: STATIC_LONGITUDE,
+    };
+  }
+
   try {
-    const result = await tool.execute(args ?? {});
+    const result = await tool.execute(toolArgs);
     return {
       content: [
         {
@@ -139,12 +209,47 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Resolved employee ID for the API key owner. Used as default `employeeId` for
+// time-tracking writes. Resolved lazily at startup; can be overridden via the
+// BAMBOOHR_EMPLOYEE_ID env var.
+let selfEmployeeId: string | undefined = DEFAULT_EMPLOYEE_ID;
+
+async function resolveSelfEmployeeId(): Promise<void> {
+  if (selfEmployeeId) return;
+  try {
+    const self = await client.get<{ id?: string }>("/employees/0/", {
+      fields: "id",
+    });
+    if (self?.id) selfEmployeeId = String(self.id);
+  } catch (err) {
+    const msg = axios.isAxiosError(err)
+      ? `HTTP ${err.response?.status ?? "unknown"}`
+      : err instanceof Error
+        ? err.message
+        : String(err);
+    process.stderr.write(
+      `WARN: could not auto-resolve current employee ID (${msg}). ` +
+        "Set BAMBOOHR_EMPLOYEE_ID or pass employeeId explicitly to time-tracking tools.\n"
+    );
+  }
+}
+
 // ─── Start ────────────────────────────────────────────────────────────────────
 async function main() {
+  if (ENABLE_TIME_TRACKING_WRITES || ENABLE_WRITES) {
+    await resolveSelfEmployeeId();
+  }
   const transport = new StdioServerTransport();
   await server.connect(transport);
+  const writeMode = ENABLE_WRITES
+    ? "all writes"
+    : ENABLE_TIME_TRACKING_WRITES
+      ? "time-tracking writes only"
+      : "read-only";
+  const idSuffix = selfEmployeeId ? ` | employeeId: ${selfEmployeeId}` : "";
+  const geoSuffix = HAS_STATIC_GEO ? ` | geo: ${STATIC_LATITUDE},${STATIC_LONGITUDE}` : "";
   process.stderr.write(
-    `bamboohr-mcp v${pkg.version} running | subdomain: ${process.env.BAMBOOHR_SUBDOMAIN} | ${allTools.length} tools loaded\n`
+    `bamboohr-mcp v${pkg.version} running | subdomain: ${process.env.BAMBOOHR_SUBDOMAIN} | ${enabledTools.length}/${allTools.length} tools loaded | mode: ${writeMode}${idSuffix}${geoSuffix}\n`
   );
 }
 
