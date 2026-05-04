@@ -110,21 +110,44 @@ const allTools: ToolDef[] = [
   ...accountTools,
 ] as ToolDef[];
 
-// Warn if any tool is missing both annotations — without it, gating below
-// silently treats the tool as read-only and exposes it by default.
+// Gating uses code behavior, not annotations. Annotations can be wrong
+// (a tool can claim readOnlyHint:true while actually calling client.post).
+// We treat any tool whose `execute` body invokes a write-shaped HTTP method
+// as destructive, regardless of what the annotation says.
+const WRITE_METHOD_RE = /\bclient\.(post|put|patch|delete)\s*\(/;
+
+function toolWritesByCode(t: ToolDef): boolean {
+  return WRITE_METHOD_RE.test(t.execute.toString());
+}
+
+// Loud warning at startup whenever annotations and code disagree, so future
+// mislabels surface immediately. Gating decisions ignore annotations.
 for (const t of allTools) {
-  const isRead = t.annotations?.readOnlyHint === true;
-  const isWrite = t.annotations?.destructiveHint === true;
-  if (!isRead && !isWrite) {
+  const codeWrites = toolWritesByCode(t);
+  const annoRead = t.annotations?.readOnlyHint === true;
+  const annoWrite = t.annotations?.destructiveHint === true;
+  if (codeWrites && annoRead) {
     process.stderr.write(
-      `WARN: tool "${t.name}" has no readOnlyHint or destructiveHint — defaulting to read-only.\n`
+      `WARN: tool "${t.name}" is annotated readOnlyHint:true but its execute body calls client.{post,put,patch,delete}. Gating it as destructive.\n`
+    );
+  } else if (codeWrites && !annoWrite) {
+    process.stderr.write(
+      `WARN: tool "${t.name}" writes via client.{post,put,patch,delete} but is missing destructiveHint:true.\n`
+    );
+  } else if (!codeWrites && annoWrite) {
+    process.stderr.write(
+      `WARN: tool "${t.name}" is annotated destructiveHint:true but its execute body has no write call.\n`
+    );
+  } else if (!codeWrites && !annoRead && !annoWrite) {
+    process.stderr.write(
+      `WARN: tool "${t.name}" has no readOnlyHint or destructiveHint annotation. Gating it as read-only by code (no write call detected).\n`
     );
   }
 }
 
 function isToolEnabled(t: ToolDef): boolean {
   if (TIME_TRACKING_WRITE_TOOLS.has(t.name)) return ENABLE_TIME_TRACKING_WRITES;
-  if (t.annotations?.destructiveHint === true) return ENABLE_WRITES;
+  if (toolWritesByCode(t)) return ENABLE_WRITES;
   return true;
 }
 

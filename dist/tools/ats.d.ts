@@ -72,8 +72,8 @@ export declare const atsTools: ({
         required: string[];
     };
     annotations: {
-        readOnlyHint: boolean;
-        destructiveHint?: undefined;
+        destructiveHint: boolean;
+        readOnlyHint?: undefined;
     };
     execute(input: z.infer<typeof CreateJobOpeningSchema>): Promise<unknown>;
 } | {
@@ -119,8 +119,8 @@ export declare const atsTools: ({
         required: string[];
     };
     annotations: {
-        readOnlyHint: boolean;
-        destructiveHint?: undefined;
+        destructiveHint: boolean;
+        readOnlyHint?: undefined;
     };
     execute(input: z.infer<typeof CreateCandidateSchema>): Promise<unknown>;
 } | {
@@ -194,8 +194,8 @@ export declare const atsTools: ({
         required: string[];
     };
     annotations: {
-        readOnlyHint: boolean;
-        destructiveHint?: undefined;
+        destructiveHint: boolean;
+        readOnlyHint?: undefined;
     };
     execute(input: z.infer<typeof UpdateApplicantStatusSchema>): Promise<unknown>;
 } | {

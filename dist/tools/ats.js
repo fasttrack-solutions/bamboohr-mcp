@@ -29,7 +29,7 @@ export const atsTools = [
             },
             required: ["jobTitle"],
         },
-        annotations: { readOnlyHint: true },
+        annotations: { destructiveHint: true },
         async execute(input) {
             const client = getClient();
             const parsed = CreateJobOpeningSchema.parse(input);
@@ -62,7 +62,7 @@ export const atsTools = [
             },
             required: ["firstName", "lastName"],
         },
-        annotations: { readOnlyHint: true },
+        annotations: { destructiveHint: true },
         async execute(input) {
             const client = getClient();
             const parsed = CreateCandidateSchema.parse(input);
@@ -112,7 +112,7 @@ export const atsTools = [
             },
             required: ["applicationId", "statusId"],
         },
-        annotations: { readOnlyHint: true },
+        annotations: { destructiveHint: true },
         async execute(input) {
             const client = getClient();
             const parsed = UpdateApplicantStatusSchema.parse(input);

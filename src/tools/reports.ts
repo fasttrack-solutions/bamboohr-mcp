@@ -93,6 +93,11 @@ export const reportsTools = [
       },
       required: ["datasetId", "fields"],
     },
+    // Semantically read-only (returns rows, doesn't mutate), but BambooHR's
+    // dataset API uses POST to carry the query body. The runtime gate in
+    // src/index.ts will treat this as destructive based on the HTTP method
+    // and require BAMBOOHR_ENABLE_WRITES=true to expose it. Annotation stays
+    // readOnlyHint:true so MCP clients get the correct semantic signal.
     annotations: { readOnlyHint: true },
     async execute(input: z.infer<typeof QueryDatasetSchema>) {
       const client = getClient();
