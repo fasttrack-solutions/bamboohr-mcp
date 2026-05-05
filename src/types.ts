@@ -96,11 +96,15 @@ export const ClockInSchema = z.object({
   employeeId: z.string(),
   clockInTime: z.string().optional().describe("ISO 8601 datetime; defaults to now"),
   note: z.string().optional(),
+  latitude: z.number().optional().describe("Decimal latitude (-90 to 90)"),
+  longitude: z.number().optional().describe("Decimal longitude (-180 to 180)"),
 });
 
 export const ClockOutSchema = z.object({
   employeeId: z.string(),
   clockOutTime: z.string().optional().describe("ISO 8601 datetime; defaults to now"),
+  latitude: z.number().optional().describe("Decimal latitude (-90 to 90)"),
+  longitude: z.number().optional().describe("Decimal longitude (-180 to 180)"),
 });
 
 export const CreateHourEntriesSchema = z.object({

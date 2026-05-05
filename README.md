@@ -65,7 +65,7 @@ Your subdomain is the prefix in your BambooHR URL — e.g. `acme` from `acme.bam
 
 ### Step 2 — Add to Claude Desktop
 
-Edit your config file:
+This package is installed from a GitHub tarball URL — no npm registry, no auth, no build step on your machine. Edit your config file:
 
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
@@ -75,7 +75,7 @@ Edit your config file:
   "mcpServers": {
     "bamboohr": {
       "command": "npx",
-      "args": ["-y", "bamboohr-mcp"],
+      "args": ["-y", "https://github.com/fasttrack-solutions/bamboohr-mcp/tarball/main"],
       "env": {
         "BAMBOOHR_API_KEY": "your-api-key-here",
         "BAMBOOHR_SUBDOMAIN": "your-company-subdomain"
@@ -95,14 +95,44 @@ Restart Claude Desktop.
 claude mcp add bamboohr \
   -e BAMBOOHR_API_KEY=your-api-key-here \
   -e BAMBOOHR_SUBDOMAIN=your-company-subdomain \
-  -- npx -y bamboohr-mcp
+  -- npx -y https://github.com/fasttrack-solutions/bamboohr-mcp/tarball/main
 ```
+
+To pin a specific tag or commit, replace `main` in the URL (e.g. `.../tarball/v0.2.0` or `.../tarball/a1b2c3d`).
+
+> Why a tarball URL instead of `git+ssh://...`? npm 11.x crashes on git-dep installs when `min-release-age` is set in npmrc. The tarball URL bypasses that path entirely and installs in ~2 seconds.
 
 ---
 
 ### Step 4 — Verify
 
 Open Claude and ask: **"Show me the BambooHR employee directory"**
+
+---
+
+### Write access (opt-in)
+
+By default, only read-only tools are exposed. Mutating tools are gated behind two flags so you can opt in to the surface you actually need:
+
+| Env var | Effect |
+|---|---|
+| `BAMBOOHR_ENABLE_TIME_TRACKING_WRITES=true` | Enables `bamboohr_clock_in`, `bamboohr_clock_out`, and `bamboohr_create_hour_entries` |
+| `BAMBOOHR_ENABLE_WRITES=true` | Enables every other destructive tool (employee/time-off/ats/webhooks/goals/training/benefits/account writes) |
+| `BAMBOOHR_EMPLOYEE_ID=12345` | *Optional override.* When write flags are on, the server auto-resolves the current employee ID from the API key at startup and uses it as the default `employeeId` for time-tracking writes. Set this only if you want to clock entries against a different employee |
+| `BAMBOOHR_DEFAULT_LATITUDE=59.3293` | *Optional.* Default decimal latitude for clock-in/out when the company enforces geolocation. Both `BAMBOOHR_DEFAULT_LATITUDE` and `BAMBOOHR_DEFAULT_LONGITUDE` must be set together. If unset, the model is expected to provide `latitude`/`longitude` in the tool call |
+| `BAMBOOHR_DEFAULT_LONGITUDE=18.0686` | See above |
+
+Example for personal clock-in setup (auto-resolves your employee ID):
+
+```bash
+claude mcp add bamboohr \
+  -e BAMBOOHR_API_KEY=your-api-key-here \
+  -e BAMBOOHR_SUBDOMAIN=your-company-subdomain \
+  -e BAMBOOHR_ENABLE_TIME_TRACKING_WRITES=true \
+  -- npx -y https://github.com/fasttrack-solutions/bamboohr-mcp/tarball/main
+```
+
+The API key's own BambooHR permissions still apply on top of these flags — flipping them on does not grant the key any new server-side authority.
 
 ---
 

@@ -1,6 +1,8 @@
 node_modules/
-dist/
 *.env
 .env
 .env.*
 *.tsbuildinfo
+
+# dist/ is committed so `npx git+ssh://...` works without a build step
+# (avoids npm-cli bugs around `min-release-age` during git-dep prep).
