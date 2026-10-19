@@ -31,6 +31,9 @@
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },
+  "overrides": {
+    "@hono/node-server": "^1.19.17"
+  },
   "engines": {
     "node": ">=18"
   }
